@@ -1,11 +1,29 @@
-from bs4 import BeautifulSoup
-import requests
 import re
+from typing import TYPE_CHECKING, List, Optional
+
+import requests
+from bs4 import BeautifulSoup, Tag
+
 from Site import Common
+
+if TYPE_CHECKING:
+    from Site.Common import Progress
 
 
 class Classicreader:
-    def __init__(self, url):
+    title: str
+    author: str
+    story: str
+    rawstoryhtml: List[Tag]
+    chapters: List[str]
+    pbar: Optional["Progress"]
+    url: str
+    duplicate: bool
+
+    def requestPage(self, url: str) -> Optional[requests.Response]:
+        return Common.RequestPage(url)
+
+    def __init__(self, url: str) -> None:
         self.title = ""
         self.author = ""
         self.story = ""
@@ -14,103 +32,95 @@ class Classicreader:
         self.pbar = None
         self.url = url
         self.duplicate = False
-        page = Common.RequestPage(url)
-        if page is None:
+        page = self.requestPage(url)
+        if page is None or page.content is None:
             print("Could not complete request for page: " + url)
-            return None
+            return
 
         soup = BeautifulSoup(page.content, "html.parser")
         # grabs important metadata information
-        self.title = soup.find("span", attrs={"class": "book-header"}).get_text()
+        title_span = soup.find("span", attrs={"class": "book-header"})
+        if isinstance(title_span, Tag):
+            self.title = title_span.get_text()
 
         if Common.dup:
             if Common.CheckDuplicate(self.title):
                 self.duplicate = True
-                return None
+                return
 
         Common.prnt(self.title)
-        self.author = (
-            soup.find("span", attrs={"class": "by-line"}).contents[1].get_text()
-        )
+        author_span = soup.find("span", attrs={"class": "by-line"})
+        if isinstance(author_span, Tag) and len(author_span.contents) > 1:
+            content = author_span.contents[1]
+            if hasattr(content, "get_text"):
+                self.author = content.get_text()  # type: ignore
         Common.prnt(self.author)
 
         # looks to see if on table of contents page
-        # exception handling could be removed from here
-        if (
-            soup.find("h2") is None
-        ):  # and len(soup.find_all('a', attrs={'class':'categories'}))>15:
+        if soup.find("h2") is None:
+            categories_links = soup.find_all("a", attrs={"class": "categories"})
             # checks to see if single page story
-            if len(soup.find_all("a", attrs={"class": "categories"})) == 15:
+            if len(categories_links) == 15:
                 paragraphs = soup.find_all("p")
-                # print(paragraphs)
                 text = ""
                 for p in paragraphs:
-                    self.story += (
-                        re.sub(r"\n\s*", r"", p.get_text(), flags=re.M) + "\n\n"
-                    )
-                    # print(p.get_text())
-                    text += (
-                        "<p>"
-                        + re.sub(r"\n\s*", r"", p.get_text(), flags=re.M)
-                        + "</p>\n"
-                    )
+                    p_text = re.sub(r"\n\s*", r"", p.get_text(), flags=re.M)
+                    self.story += p_text + "\n\n"
+                    text += "<p>" + p_text + "</p>\n"
                 temp = BeautifulSoup(text, "html.parser")
                 self.chapters.append(self.title)
-                self.rawstoryhtml.append(temp)
+                if isinstance(temp, Tag):
+                    self.rawstoryhtml.append(temp)
                 return
             try:
-                url = "https://www.classicreader.com" + soup.find_all(
-                    "a", attrs={"class": "categories"}
-                )[7].get("href")
-                page = requests.get(url)
-                soup = BeautifulSoup(page.content, "html.parser")
-                Common.prnt("got table of contents page")
-            except:
+                toc_href = categories_links[7].get("href")
+                if isinstance(toc_href, str):
+                    url_toc = "https://www.classicreader.com" + toc_href
+                    page_toc = requests.get(url_toc)
+                    soup = BeautifulSoup(page_toc.content, "html.parser")
+                    Common.prnt("got table of contents page")
+            except Exception:
                 paragraphs = soup.find_all("p")
-                # print(paragraphs)
                 text = ""
                 for p in paragraphs:
-                    self.story += (
-                        re.sub(r"\n\s*", r"", p.get_text(), flags=re.M) + "\n\n"
-                    )
-                    # print(p.get_text())
-                    text += (
-                        "<p>"
-                        + re.sub(r"\n\s*", r"", p.get_text(), flags=re.M)
-                        + "</p>\n"
-                    )
+                    p_text = re.sub(r"\n\s*", r"", p.get_text(), flags=re.M)
+                    self.story += p_text + "\n\n"
+                    text += "<p>" + p_text + "</p>\n"
                 temp = BeautifulSoup(text, "html.parser")
                 self.chapters.append(self.title)
-                self.rawstoryhtml.append(temp)
+                if isinstance(temp, Tag):
+                    self.rawstoryhtml.append(temp)
                 return
 
         links = soup.find_all("a", attrs={"class": "chapter-title"})
 
         self.pbar = Common.Progress(len(links))
-        # self.pbar.Update()
 
         for i in links:
-            self.AddNextPage("https://www.classicreader.com" + i.get("href"))
-            self.chapters.append(i.get_text())
-            self.pbar.Update()
+            href = i.get("href")
+            if isinstance(href, str):
+                self.AddNextPage("https://www.classicreader.com" + href)
+                self.chapters.append(i.get_text())
+                if self.pbar:
+                    self.pbar.Update()
 
-        self.pbar.End()
-        # print(self.chapters)
+        if self.pbar:
+            self.pbar.End()
 
-    def AddNextPage(self, link):
-        page = Common.RequestPage(link)
+    def AddNextPage(self, link: str) -> None:
+        page = self.requestPage(link)
 
-        if page is None:
-            print("Could not complete request for page: " + url)
-            return None
+        if page is None or page.content is None:
+            print("Could not complete request for page: " + link)
+            return
 
         soup = BeautifulSoup(page.content, "html.parser")
         paragraphs = soup.find_all("p")
-        # print(paragraphs)
         text = ""
         for p in paragraphs:
-            self.story += re.sub(r"\n\s*", r"", p.get_text(), flags=re.M) + "\n\n"
-            # print(p.get_text())
-            text += "<p>" + re.sub(r"\n\s*", r"", p.get_text(), flags=re.M) + "</p>\n"
+            p_text = re.sub(r"\n\s*", r"", p.get_text(), flags=re.M)
+            self.story += p_text + "\n\n"
+            text += "<p>" + p_text + "</p>\n"
         temp = BeautifulSoup(text, "html.parser")
-        self.rawstoryhtml.append(temp)
+        if isinstance(temp, Tag):
+            self.rawstoryhtml.append(temp)

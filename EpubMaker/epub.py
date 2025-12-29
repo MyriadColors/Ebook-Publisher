@@ -1,49 +1,33 @@
-from zipfile import ZipFile
 import xml.etree.ElementTree as ET
+from typing import TYPE_CHECKING, List, Optional, Union
+from zipfile import ZipFile
 
-version = "Epub-Maker 0.3"
-MIMETYPE = "application/epub+zip"
-container = """<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+if TYPE_CHECKING:
+    pass
+
+version: str = "Epub-Maker 0.3"
+MIMETYPE: str = "application/epub+zip"
+container: str = """<container xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\" version=\"1.0\">
 <rootfiles>
-<rootfile media-type="application/oebps-package+xml" full-path="EPUB/content.opf"/>
+<rootfile media-type=\"application/oebps-package+xml\" full-path=\"EPUB/content.opf\"/>
 </rootfiles>
 </container>"""
 
 
-class EpubBook:
-    def __init__(self):
-        self.item_list = []
-        self.spine = []
-        self.toc = []
-        self.author = ""
-        self.styleString = ""
-        self.identifier = ""
-        self.title = ""
-        self.language = "en"
-
-    def set_identifier(self, identifier):
-        self.identifier = identifier
-
-    def add_item(self, item):
-        self.item_list.append(item)
-
-    def set_title(self, title):
-        self.title = title
-
-    def set_language(self, lang):
-        self.language = lang
-
-    def add_author(self, author):
-        self.author = author
-
-    def add_style_sheet(self, styleString):
-        self.styleString = styleString
-
-
 class EpubHtml:
+    title: str
+    file_name: str
+    lang: str
+    content: str
+    tocTitle: str
+
     def __init__(
-        self, title="Title", file_name="file_name.xhtml", lang="en", tocTitle=None
-    ):
+        self,
+        title: str = "Title",
+        file_name: str = "file_name.xhtml",
+        lang: str = "en",
+        tocTitle: Optional[str] = None,
+    ) -> None:
         self.title = title
         self.file_name = file_name
         self.lang = lang
@@ -59,15 +43,57 @@ class EpubNav:
     pass
 
 
-def _indent(elem, level=0):
+EpubItem = Union[EpubHtml, EpubNcx, EpubNav]
+
+
+class EpubBook:
+    item_list: List[EpubItem]
+    spine: List[Union[EpubHtml, str]]
+    toc: List[EpubHtml]
+    author: str
+    styleString: str
+    identifier: str
+    title: str
+    language: str
+
+    def __init__(self) -> None:
+        self.item_list = []
+        self.spine = []
+        self.toc = []
+        self.author = ""
+        self.styleString = ""
+        self.identifier = ""
+        self.title = ""
+        self.language = "en"
+
+    def set_identifier(self, identifier: str) -> None:
+        self.identifier = identifier
+
+    def add_item(self, item: EpubItem) -> None:
+        self.item_list.append(item)
+
+    def set_title(self, title: str) -> None:
+        self.title = title
+
+    def set_language(self, lang: str) -> None:
+        self.language = lang
+
+    def add_author(self, author: str) -> None:
+        self.author = author
+
+    def add_style_sheet(self, styleString: str) -> None:
+        self.styleString = styleString
+
+
+def _indent(elem: ET.Element, level: int = 0) -> None:
     i = "\n" + level * "  "
     if len(elem):
         if not elem.text or not elem.text.strip():
             elem.text = i + "  "
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
-        for elem in elem:
-            _indent(elem, level + 1)
+        for subelem in elem:
+            _indent(subelem, level + 1)
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
     else:
@@ -75,7 +101,7 @@ def _indent(elem, level=0):
             elem.tail = i
 
 
-def write_epub(title, book):
+def write_epub(title: str, book: EpubBook) -> None:
     with ZipFile(title, "w") as Zip:
         Zip.writestr("mimetype", MIMETYPE)
         Zip.writestr("META-INF/container.xml", container)

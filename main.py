@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
+import argparse
+import getpass
+import os
+import queue
+import sys
+import threading
+import urllib.parse
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from zipfile import ZipFile
+
+from EpubMaker import epub as epub
+from Site import Chyoa, Classicreader, Common, Fanfiction, Literotica, Nhentai, Wattpad
+
 Version = "3.4.0"
 
-import sys
-from Site import *
-import urllib.parse
-from EpubMaker import epub as epub
-import argparse
-import os
-import threading
-import queue
-from zipfile import ZipFile
-import getpass
-
 # Master dict of supported sites
-sites = {
+sites: Dict[str, Callable[[str], Common.SiteProvider]] = {
     "www.literotica.com": lambda x: Literotica.Literotica(x),
     "www.fanfiction.net": lambda x: Fanfiction.Fanfiction(x),
     "www.fictionpress.com": lambda x: Fanfiction.Fanfiction(x),
@@ -22,7 +24,7 @@ sites = {
     "www.wattpad.com": lambda x: Wattpad.Wattpad(x),
     "nhentai.net": lambda x: Nhentai.Nhentai(x),
 }
-formats = {
+formats: Dict[str, Callable[[Common.SiteProvider], None]] = {
     "epub": lambda x: MakeEpub(x),
     "html": lambda x: MakeHTML(x),
     "txt": lambda x: MakeText(x),
@@ -33,8 +35,8 @@ formats = {
 
 
 # function for making text files
-def MakeText(site):
-    if type(site) is not Nhentai.Nhentai:
+def MakeText(site: Common.SiteProvider) -> None:
+    if not isinstance(site, Nhentai.Nhentai):
         title_stripped = Common.sanitize_filename(site.title)
         published = open(
             os.path.join(wd, title_stripped + ".txt"), "w", encoding="utf-8"
@@ -44,10 +46,9 @@ def MakeText(site):
         published.write(site.story)
         published.close()
 
-
-def MakeHTML(site):
+def MakeHTML(site: Any) -> None:
     title_stripped = Common.sanitize_filename(site.title)
-    if (type(site) is Chyoa.Chyoa or type(site) is Nhentai.Nhentai) and site.hasimages:
+    if (isinstance(site, (Chyoa.Chyoa, Nhentai.Nhentai))) and site.hasimages:
         published = open(
             os.path.join(wd, title_stripped, title_stripped + ".html"),
             "w",
@@ -58,7 +59,7 @@ def MakeHTML(site):
             os.path.join(wd, title_stripped + ".html"), "w", encoding="utf-8"
         )
     published.write("<!DOCTYPE html>\n")
-    published.write('<html lang="en">\n')
+    published.write('<html lang="en">')
     published.write("<style>\n" + styleSheet + "\n</style>")
     published.write(
         "<head>\n<title>"
@@ -78,12 +79,12 @@ def MakeHTML(site):
         + Common.escape_html(site.url)
         + "</a>\n"
     )
-    if type(site) not in (Nhentai.Nhentai, Literotica.Literotica):
+    if not isinstance(site, (Nhentai.Nhentai, Literotica.Literotica)):
         published.write("<h2>Table of Contents</h2>\n")
-        if type(site) is not Chyoa.Chyoa:
+        if not isinstance(site, Chyoa.Chyoa):
             for i in range(len(site.rawstoryhtml)):
                 published.write(
-                    '<p><a href="#Chapter '
+                    '<p><a href="#Chapter ' \
                     + str(i)
                     + '">'
                     + Common.escape_html(site.chapters[i])
@@ -129,7 +130,7 @@ def MakeHTML(site):
                     if site.partial:
                         j = site.partialStart
                         published.write(
-                            '<p><a href="#Chapter '
+                            '<p><a href="#Chapter ' \
                             + str(i)
                             + '">'
                             + str(j)
@@ -140,7 +141,7 @@ def MakeHTML(site):
                         j += 1
                     else:
                         published.write(
-                            '<p><a href="#Chapter '
+                            '<p><a href="#Chapter ' \
                             + str(i)
                             + '">'
                             + "1.1 "
@@ -150,20 +151,20 @@ def MakeHTML(site):
         else:
             for i in range(len(site.rawstoryhtml)):
                 published.write(
-                    '<p><a href="#Chapter '
+                    '<p><a href="#Chapter ' \
                     + str(i)
                     + '">'
                     + Common.escape_html(site.chapters[i])
                     + "</a></p>\n"
                 )
     for i in range(len(site.rawstoryhtml)):
-        if type(site) is Nhentai.Nhentai:
+        if isinstance(site, Nhentai.Nhentai):
             published.write(Common.sanitize_html(site.truestoryhttml[i]))
-        elif type(site) is Literotica.Literotica:
+        elif isinstance(site, Literotica.Literotica):
             published.write(Common.sanitize_html(site.storyhtml))
             break
         else:
-            if type(site) is Chyoa.Chyoa and not site.backwards:
+            if isinstance(site, Chyoa.Chyoa) and not site.backwards:
                 if i != 0:
                     published.write(
                         '<h2 id = "'
@@ -175,7 +176,7 @@ def MakeHTML(site):
                     )
                 else:
                     published.write(
-                        '<h2 id="Chapter '
+                        '<h2 id="Chapter ' \
                         + str(i)
                         + '">\n'
                         + Common.escape_html(site.chapters[i])
@@ -184,7 +185,7 @@ def MakeHTML(site):
                     )
             else:
                 published.write(
-                    '<h2 id="Chapter '
+                    '<h2 id="Chapter ' \
                     + str(i)
                     + '">\n'
                     + Common.escape_html(site.chapters[i])
@@ -202,7 +203,7 @@ def MakeHTML(site):
 
 
 # This function is basically all magic from the docs of EpubMaker
-def MakeEpub(site):
+def MakeEpub(site: Any) -> None:
     book = epub.EpubBook()
     book.set_identifier(Common.escape_html(site.url))
     titlepage = epub.EpubHtml(title="Title Page", file_name="Title.xhtml", lang="en")
@@ -212,6 +213,8 @@ def MakeEpub(site):
         + "</h1><h3>by "
         + Common.escape_html(site.author)
         + "</h3><br /><a href="
+        + Common.escape_html(site.url)
+        + ">"
         + Common.escape_html(site.url)
         + "</a>"
     )
@@ -224,12 +227,12 @@ def MakeEpub(site):
     book.set_language("en")
     book.add_author(Common.escape_html(site.author))
     book.add_style_sheet(styleSheet)
-    c = []
+    c: List[epub.EpubHtml] = []
 
-    if type(site) is not Literotica.Literotica and type(site) is not Nhentai.Nhentai:
-        toc = []
+    if not isinstance(site, (Literotica.Literotica, Nhentai.Nhentai)):
+        toc: List[epub.EpubHtml] = []
         for i in range(len(site.rawstoryhtml)):
-            if type(site) is Chyoa.Chyoa and not site.backwards:
+            if isinstance(site, Chyoa.Chyoa) and not site.backwards:
                 if i == 0:
                     c.append(
                         epub.EpubHtml(
@@ -289,7 +292,7 @@ def MakeEpub(site):
                     + "\n</h2>\n"
                     + Common.sanitize_html(site.epubrawstoryhtml[i])
                 )
-            elif type(site) is Nhentai.Nhentai:
+            elif isinstance(site, Nhentai.Nhentai):
                 c.append(
                     epub.EpubHtml(
                         title=Common.escape_html(site.chapters[i]),
@@ -317,7 +320,7 @@ def MakeEpub(site):
 
         book.toc = toc
         book.spine.append("nav")
-    elif type(site) is Nhentai.Nhentai:
+    elif isinstance(site, Nhentai.Nhentai):
         c.append(epub.EpubHtml(title="none", file_name="Chapter 1.xhtml", lang="en"))
         c[0].content = Common.sanitize_html(site.truestoryhttml[0])
         book.add_item(c[0])
@@ -337,13 +340,13 @@ def MakeEpub(site):
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
     # book.spine.append('nav')
-    for i in c:
-        book.spine.append(i)
+    for item in c:
+        book.spine.append(item)
     title_stripped = Common.sanitize_filename(site.title)
     epub.write_epub(os.path.join(wd, title_stripped + ".epub"), book)
 
-    if type(site) is Nhentai.Nhentai:
-        if site.hasimages == True:
+    if isinstance(site, Nhentai.Nhentai):
+        if site.hasimages:
             with ZipFile(os.path.join(wd, site.title + ".epub"), "a") as myfile:
                 i = 1
                 for url in site.images:
@@ -355,10 +358,12 @@ def MakeEpub(site):
                     if i > 99:
                         zeros = ""
                     with myfile.open("EPUB/" + zeros + str(i) + ".jpg", "w") as myimg:
-                        myimg.write(Common.GetImage(url))
+                        img_data = Common.GetImage(url)
+                        if img_data is not None:
+                            myimg.write(img_data)
                     i = i + 1
-    elif type(site) is Chyoa.Chyoa:
-        if site.hasimages == True:
+    elif isinstance(site, Chyoa.Chyoa):
+        if site.hasimages:
             with ZipFile(os.path.join(wd, title_stripped + ".epub"), "a") as myfile:
                 i = 1
                 for num in Common.urlDict[site.url]:
@@ -367,12 +372,13 @@ def MakeEpub(site):
                         with myfile.open(
                             "EPUB/img" + str(i - 1) + ".jpg", "w"
                         ) as myimg:
-                            myimg.write(Common.GetImage(Common.urlDict[site.url][num]))
-                    except urllib.error.HTTPError:
+                            img_data = Common.GetImage(Common.urlDict[site.url][num])
+                            if img_data is not None:
+                                myimg.write(img_data)
+                    except Exception:
                         continue
 
-
-def MakeClass(url):
+def MakeClass(url: str) -> Optional[Common.SiteProvider]:
     # getting url
     domain = urllib.parse.urlparse(url)[1]
     if domain == "nhentai.net" and args.t:
@@ -384,7 +390,7 @@ def MakeClass(url):
             site = sites[domain](url)
         except KeyError:
             print("Unsupported site: " + domain)
-            return
+            return None
     # site=sites[domain](url)
     if args.t:
         if not site.duplicate:
@@ -392,25 +398,24 @@ def MakeClass(url):
                 formats[ft](site)
             q.put(site)
         else:
-            return
+            return None
     return site
 
 
 # grabs all of the urls if the argument is a file, or assumes the argument is a single URL
-def ListURLs(url):
+def ListURLs(url: str) -> Union[List[str], Tuple[str, ...]]:
     if os.path.isfile(os.path.join(cwd, url)):
         with open(cwd + "/" + url, "r") as fi:
             return fi.read().splitlines()
     else:
         return (url,)
 
-
-def getCSS():
+def getCSS() -> str:
     if os.path.isfile(os.path.join(cwd, args.css)):
         with open(cwd + "/" + args.css, "r") as fi:
             return fi.read()
     else:
-        return args.css
+        return str(args.css)
 
 
 # setting up commandline argument parser
@@ -439,15 +444,12 @@ Authentication (Chyoa):
 
 
 
-  
 
 
 
     Alternatively, provide --usr to be prompted for a password interactively.
 
 
-
-  
 
 
 
@@ -471,7 +473,7 @@ parser.add_argument(
 
 
 parser.add_argument(
-    "-d", "--directory", help="Directory to place output files. Default ./"
+    "-d", "--directory", help="Directory to place output files. Default ./'"
 )
 
 
@@ -557,7 +559,6 @@ if user:
     if not password:
         password = getpass.getpass(f"Password for Chyoa user '{user}': ")
 
-
 try:
     if user and password:
         Common.GetChyoaSession(password)
@@ -605,7 +606,7 @@ else:
 Common.wd = wd
 
 Common.opf = args.output_type
-if Common.opf == None:
+if not Common.opf:
     Common.opf = ["txt"]
 
 
@@ -621,13 +622,13 @@ if not os.path.exists(wd):
 styleSheet = getCSS()
 
 ftype = args.output_type
-if ftype == None:
+if not ftype:
     ftype = ["txt"]
-q = queue.Queue()
+q: queue.Queue[Common.SiteProvider] = queue.Queue()
 
 
 if args.file:
-    urls = []
+    urls: List[str] = []
     # gets the list of urls
     if not stdin:
         for arg in args.url:
@@ -648,7 +649,7 @@ if args.file:
         # Limit concurrent threads to 5 to avoid overwhelming servers/local resources
         semaphore = threading.Semaphore(5)
 
-        def ThreadedMakeClass(url):
+        def ThreadedMakeClass(url: str) -> None:
             with semaphore:
                 MakeClass(url)
 

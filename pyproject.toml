@@ -1,0 +1,9 @@
+[tool.ruff]
+# Set the maximum line length
+line-length = 88
+
+[tool.ruff.lint]
+# Enable specific rules (E/W for pycodestyle, F for Pyflakes, B for Bugbear, I for isort)
+select = ["E", "W", "F", "B", "I"]
+# Exclude specific rule codes if needed
+ignore = ["E501"] 
