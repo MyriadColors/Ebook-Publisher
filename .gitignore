@@ -1,0 +1,4 @@
+*.txt
+Site/__pycache__
+EpubMaker/__pycache__
+.ruff_cache

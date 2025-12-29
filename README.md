@@ -1,83 +1,90 @@
-# Ebook-Publisher
-A Python tool for converting online stories into portable formats
+# Ebook-Publisher v3.4.0
 
-**Download Ebook-Publisher by cloning the git repository `git clone https://github.com/theslavicbear/Ebook-Publisher.git` or downloading the zip of the latest release (generally more stable, as I tend to push directly to master) and running the Ebook-Publisher.py file. At a minimum, you must supply one URL from a supported site as a command line argument. With no other options, you will receive a text file with the story contents. Please see the below help message for a list of possible options to improve your experience, e.g. multiple URL inputs, concurrent downloads, and/or EPUB/HTML formatted output files.**
+A Python tool for converting online stories into portable formats.
 
-Ebook-Publisher is my pet project, and the project that I currently have spent the most time and effort on. As such, I welcome criticism, requests for improvement, and bug reports. Please open an issue for any of the preceding.
+## Features
 
-## Currently supported sites:
-* ~~fanfiction.net~~
-* ~~fictionpress.com~~ (fanfiction and fictionpress currently cannot be scraped due to updates in the sites that I can't work around. Probably won't be fixed as honestly you can find better downloaders for the sites)
-* literotica.com
-* ~~classicreader.com~~ (Site seems to have been shut down)
-* chyoa.com (You may either input the first page of a story, and Ebook-Publisher will grab the whole story, or input the last page you want included and Ebook-Publisher will work backwards and grab the story from the beginning to your input page. You will be asked for customizable names, etc. before the story is grabbed.)
-* wattpad.com
-* nhentai.net (Either grabs every image and dumps in a folder for TXT and HTML (HTML adds an HTML file for easy reading via web browser), or tries to add every image to an EPUB file)
+* **Security Hardened:** Secure credential handling, XML injection protection, and path traversal prevention.
+* **Format Support:** Plain text (TXT), EPUB, and HTML output.
+* **Automation:** Supports multiple URLs, batch files, and standard input (piping).
+* **Multithreading:** Rapidly download multiple stories simultaneously.
+* **Site Integration:** Full support for scraping complex sites like Chyoa and Nhentai, including image support and login capabilities.
 
-Want more sites supported? Open an Issue and ask for its support or add support for the site yourself! 
+## Installation
 
-  
-## Currently supported file types:
-* plain text files
-* epub ebook files
-* html files
-  
-Want more formats supported? Open an Issue or try using a tool like Pandoc to convert one of the already supported file types.
- 
-## Usage:
+Ebook-Publisher requires Python 3.
 
-Ebook-Publisher requires the following:
-* Python3
+1. Clone the repository: `git clone https://github.com/theslavicbear/Ebook-Publisher.git`
+2. Install dependencies:
 
-On the small amount of testing I have done under Windows 8.1, I did need to install the requests package, which only reqired a quick `C:\Python34\Scripts\pip.exe install requests` From there, if you do not have the python3 executable on your PATH, you can run like `C:\Python34\python.exe C:\Path\To\Ebook-Publisher.py` Obviously, use the folder name of your installed version of python3. 
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-To run Ebook-Publisher, use the terminal or command prompt to execute Python3 and pass in Ebook-Publisher.py and the URL for the story you want. The URL can either be one or more links to a story on a supported webpage, or one or more text files containing a list of webpage URLs. You do not need to distinguish between the two. You can add several other arguments. Try `python3 Ebook-Publisher.py --help` for the detailed readout, or see below:
+## Usage
+
+Run the script and provide one or more URLs, a text file containing URLs, or pipe URLs directly to the script.
+
+```bash
+python Ebook-Publisher.py [URL/FILE] [OPTIONS]
+```
+
+### Credentials (Chyoa)
+
+For stories requiring login, you can provide credentials securely:
+
+* **Interactive Prompt:** Provide `--usr your_username` and you will be prompted for your password securely.
+* **Environment Variables:** Set `CHYOA_USER` and `CHYOA_PASSWORD` in your environment.
+
+### Options
 
 ```
-usage: ebook-publisher [-h] [-o {txt,epub,html,TXT,EPUB,HTML}] [-d DIRECTORY] [-q] [-t] [-i] [-n]
-                       [-s CSS] [--chyoa-force-forwards] [--eol EOL] [--chyoa-update]
-                       [url [url ...]]
+  -o, --output-type {txt,epub,html}  The file type(s) you want (can be used multiple times)
+  -d, --directory DIRECTORY           Directory to place output files
+  -q, --quiet                         Turns off most terminal output
+  -t                                  Turns on multithreading mode
+  -i, --insert-images                 Downloads images for Chyoa/Nhentai
+  -n, --no-duplicates                 Skips stories already downloaded
+  -s, --css CSS                       CSS string or .css file for formatting
+  --usr USR                           Chyoa username to log in with
+  --chyoa-update                      Only download if the story has been updated since the last download
+  --chyoa-force-forwards               Force Chyoa stories to be scraped from the beginning
+  --eol EOL                           Custom end-of-line character for TXT output (e.g., '\n')
+```
 
-positional arguments:
-  url                   The URL of the story you want
+### Examples
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -o {txt,epub,html,TXT,EPUB,HTML}, --output-type {txt,epub,html,TXT,EPUB,HTML}
-                        The file type you want
-  -d DIRECTORY, --directory DIRECTORY
-                        Directory to place output files. Default ./
-  -q, --quiet           Turns off most terminal output
-  -t                    Turns on multithreading mode. Recommend also enabling --quiet
-  -i, --insert-images   Downloads and inserts images for Chyoa stories
-  -n, --no-duplicates   Skips stories if they have already been downloaded
-  -s CSS, --css CSS, --style-sheet CSS
-                        either a CSS string or a .css file to use for formatting
-  --chyoa-force-forwards
-                        Force Chyoa stories to be scraped forwards if not given page 1
-  --eol EOL             end of line character for .txt output format, must be enclosed in single
-                        quotes
-  --chyoa-update        Checks if story already exists in output directory, and skips it if it has
-                        not been updated on the server since file was created.
-  --usr USR             Chyoa username to log in with
-  --pswd PSWD           Chyoa password to log in with
-```  
+```bash
+# Basic usage
+python Ebook-Publisher.py https://chyoa.com/story/example -o epub
 
-                        
-### Sample Usage:
+# Batch processing from a file
+python Ebook-Publisher.py urls.txt -o epub -o html -d ./my_books/
 
-`python3 Ebook-Publisher.py www.some.website/stories/my-story -o epub -o html -d ~/Documents/My\ Books/`
+# Multithreaded download with images
+python Ebook-Publisher.py urls.txt -t -i -o epub
 
-`./Ebook-Publisher.py -o txt to-download.txt`
+# Secure login
+python Ebook-Publisher.py https://chyoa.com/story/private --usr MyUser -o epub
+```
 
-### Using standard input:
+## Currently supported sites
 
-`cat list.txt | python3 Ebook-Publisher.py -d ./output`
+* **chyoa.com**
+* **nhentai.net**
+* **literotica.com**
+* **fanfiction.net**
+* **fictionpress.com**
+* **wattpad.com**
+* **classicreader.com**
 
-`echo www.some.website/stories/my-story | ./Ebook-Publisher.py -o epub -d ~/Documents/My\ Books/`
+## Security & Privacy
 
-### Known Issues
+* **Credential Safety:** Passwords are never echoed to the screen or stored in history when using the interactive prompt or environment variables.
+* **Data Integrity:** EPUB generation uses a secure XML builder to prevent injection attacks.
+* **Path Safety:** Output filenames are sanitized to prevent directory traversal.
+* **Modern Identity:** Uses a modern User-Agent to reduce bot detection and IP flagging.
 
-* Image downloading can fail without alerting the user.
-* Fanfiction and Fictionpress links currently do not work.
-* Classicreader links currently do not work
+## Contributing
+
+Ebook-Publisher is a pet project. I welcome criticism, requests for improvement, and bug reports via Issues.
